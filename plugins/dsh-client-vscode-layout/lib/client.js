@@ -355,7 +355,21 @@ window.__ModuleLoader__.load({
 			"body[data-ds-dark-theme] .vk_gitM{color:#e2c08d}",
 			"body[data-ds-dark-theme] .vk_gitU,body[data-ds-dark-theme] .vk_gitA{color:#73c991}",
 			"body[data-ds-dark-theme] .vk_gitD{color:#f14c4c}",
-			"body[data-ds-dark-theme] .vk_gitR{color:#c678dd}"
+			"body[data-ds-dark-theme] .vk_gitR{color:#c678dd}",
+			// 全局人设弹窗
+			".vk_personaOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999;padding:24px}",
+			".vk_personaModal{width:680px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;background:var(--dsw-specific-sidebar-fill);border:1px solid var(--dsw-alias-border-l1);border-radius:12px;box-shadow:0 14px 48px rgba(0,0,0,.5);padding:18px;gap:12px}",
+			".vk_personaTitle{font-size:14px;font-weight:700;color:var(--dsw-alias-label-primary)}",
+			".vk_personaHint{font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.7}",
+			".vk_personaArea{flex:1;min-height:280px;resize:vertical;background:var(--dsw-specific-input-fill,var(--dsw-specific-sidebar-fill));color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:12.5px;line-height:1.75;tab-size:4}",
+			".vk_personaArea:focus{outline:none;border-color:var(--vk-accent)}",
+			".vk_personaFoot{display:flex;align-items:center;gap:8px;justify-content:flex-end}",
+			".vk_personaErr{color:#f14c4c;font-size:12px;margin-right:auto;white-space:pre-wrap}",
+			".vk_personaSave{background:var(--vk-accent);color:#fff;border-radius:6px;padding:6px 16px;font-weight:600;border:none;cursor:pointer;font-size:12.5px}",
+			".vk_personaSave:hover{filter:brightness(1.1)}",
+			".vk_personaSave:disabled{opacity:.5;cursor:default}",
+			".vk_personaCancel{background:transparent;color:var(--dsw-alias-label-secondary);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12.5px}",
+			".vk_personaCancel:hover{color:var(--dsw-alias-label-primary)}"
 		].join("");
 		{
 			const tagId = "@anoslide/dsh-client-vscode-layout/vscode.module.css";
@@ -1040,6 +1054,45 @@ window.__ModuleLoader__.load({
 		}
 
 		// ──────────────────────────────────────────────────────────────
+		// 组件：全局人设弹窗（类似 CC 的全局 CLAUDE.md，所有会话生效）
+		// ──────────────────────────────────────────────────────────────
+		function PersonaDialog({ onClose }) {
+			const [content, setContent] = react.useState(null); // null = 加载中
+			const [saving, setSaving] = react.useState(false);
+			const [err, setErr] = react.useState(null);
+			react.useEffect(() => {
+				let dead = false;
+				fetch("/vscode-files/persona")
+					.then((r) => r.json())
+					.then((d) => { if (!dead) setContent(d && d.ok ? (d.content || "") : ""); })
+					.catch(() => { if (!dead) setContent(""); });
+				return () => { dead = true; };
+			}, []);
+			const save = () => {
+				setSaving(true);
+				setErr(null);
+				fetch("/vscode-files/persona", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content }) })
+					.then((r) => r.json())
+					.then((d) => { setSaving(false); if (d && d.ok) onClose(); else setErr((d && d.error) || "保存失败"); })
+					.catch((e) => { setSaving(false); setErr(String(e)); });
+			};
+			return h("div", { className: "vk_personaOverlay", onClick: (e) => { if (e.target === e.currentTarget) onClose(); } },
+				h("div", { className: "vk_personaModal" },
+					h("div", { className: "vk_personaTitle" }, "全局人设"),
+					h("div", { className: "vk_personaHint" }, "类似 Claude Code 的全局 CLAUDE.md：内容会注入到所有会话的系统提示中（新消息立即生效）。支持 Markdown。"),
+					content === null
+						? h("div", { className: "vk_personaHint" }, "加载中…")
+						: h("textarea", { className: "vk_personaArea", value: content, onChange: (e) => setContent(e.target.value), placeholder: "例如：\n- 你叫小鲸，说话简洁直接\n- 一律用简体中文回答\n- …" }),
+					h("div", { className: "vk_personaFoot" },
+						err !== null ? h("div", { className: "vk_personaErr" }, String(err)) : null,
+						h("button", { className: "vk_personaCancel", onClick: onClose }, "取消"),
+						h("button", { className: "vk_personaSave", disabled: saving || content === null, onClick: save }, saving ? "保存中…" : "保存")
+					)
+				)
+			);
+		}
+
+		// ──────────────────────────────────────────────────────────────
 		// 组件：左栏（文件/会话 双 Tab）与 右栏（对话/详情 双 Tab）
 		// ──────────────────────────────────────────────────────────────
 		function LeftPanel({ tab, onTab, tree, sessionSlot, collapsed, onExpand, onCollapse }) {
@@ -1064,15 +1117,18 @@ window.__ModuleLoader__.load({
 			);
 		}
 		function RightPanel({ tab, onTab, conversation, details, mode, onToggleMode, showDetails }) {
+			const [personaOpen, setPersonaOpen] = react.useState(false);
 			return h("div", { className: "vk_colRight" },
 				h("div", { className: "vk_tabBar" },
 					h("button", { className: "vk_tabBtn" + (tab === "conversation" ? " vk_tabBtnActive" : ""), onClick: () => onTab("conversation") }, "对话"),
 					showDetails ? h("button", { className: "vk_tabBtn" + (tab === "details" ? " vk_tabBtnActive" : ""), onClick: () => onTab("details") }, "详情") : null,
 					h("div", { className: "vk_tabBarSpacer" }),
+					h("button", { className: "vk_tabBtn", title: "全局人设（所有会话生效，类似 CC 的全局 CLAUDE.md）", onClick: () => setPersonaOpen(true) }, "⚙ 人设"),
 					h("button", { className: "vk_tabBtn vk_modeBtn", title: mode === "native" ? "切回分栏模式（文件查看器 + 侧栏对话）" : "切换为全屏对话模式（隐藏文件查看器）", onClick: onToggleMode }, mode === "native" ? "◫ 分栏视图" : "⛶ 全屏对话")
 				),
 				h("div", { className: "vk_tabBody" + (tab === "conversation" ? "" : " vk_tabBodyHidden") }, conversation),
-				showDetails ? h("div", { className: "vk_tabBody" + (tab === "details" ? "" : " vk_tabBodyHidden") }, details) : null
+				showDetails ? h("div", { className: "vk_tabBody" + (tab === "details" ? "" : " vk_tabBodyHidden") }, details) : null,
+				personaOpen ? h(PersonaDialog, { onClose: () => setPersonaOpen(false) }) : null
 			);
 		}
 

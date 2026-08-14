@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
 import { dirname, extname, join } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { homedir } from "node:os";
 import { pathToFileURL } from "node:url";
 
 /** 插件名（loader 条目用）。 */
@@ -21,6 +22,12 @@ const SEARCH_ENTRY_LIMIT = 20000;
 const SEARCH_RESULT_LIMIT = 200;
 /** 默认折叠的目录名。 */
 const COLLAPSED_DIRS = new Set([".git", "node_modules", "__pycache__", ".venv", "venv", "dist", ".next", ".dsh"]);
+/** 全局人设文件（~/.dsh/global-persona.md，注入所有会话的 systemPrompt）。 */
+const PERSONA_FILE = join(homedir(), ".dsh", "global-persona.md");
+const MAX_PERSONA_BYTES = 128 * 1024;
+/** 全局人设的 prompt 段名与排序（紧随官方 persona order 0 之后）。 */
+const PERSONA_SECTION = "user:global-persona";
+const PERSONA_ORDER = 1;
 
 function sendJson(res, code, value) {
 	const body = JSON.stringify(value);
@@ -199,13 +206,49 @@ function shikiLangOf(path) {
  * POST /vscode-files/mkfile body { path: 父目录, name } → { ok, path }
  * POST /vscode-files/rename body { path, newName } → { ok, path }
  * POST /vscode-files/delete body { path } → { ok }（送回收站，可恢复）
+ * GET  /vscode-files/persona → { ok, content }（全局人设，~/.dsh/global-persona.md）
+ * POST /vscode-files/persona body { content } → { ok }（保存全局人设）
  */
 function apply(ctx) {
+	// 全局人设：注入所有会话的 systemPrompt（text 为函数，每次组装时读文件，改后即时生效）
+	ctx.inject(["systemPrompt"], (promptCtx) => {
+		promptCtx.systemPrompt.section({
+			name: PERSONA_SECTION,
+			order: PERSONA_ORDER,
+			text: () => {
+				try {
+					return readFileSync(PERSONA_FILE, "utf8").slice(0, MAX_PERSONA_BYTES);
+				} catch {
+					return "";
+				}
+			}
+		});
+	});
 	ctx.effect(() => ctx.webServer.register({
 		kind: "prefix",
 		path: "/vscode-files",
 		handler: async (req, res) => {
 			const url = new URL(req.url ?? "/", "http://x");
+			// 全局人设（无 path 参数，需在 path 校验之前处理）
+			if (url.pathname === "/vscode-files/persona") {
+				if (req.method === "POST") {
+					try {
+						const body = await readJsonBody(req, MAX_PERSONA_BYTES + 4096);
+						const content = body?.content;
+						if (typeof content !== "string") return sendJson(res, 400, { ok: false, error: "body needs { content: string }" });
+						if (Buffer.byteLength(content, "utf8") > MAX_PERSONA_BYTES) return sendJson(res, 400, { ok: false, error: "persona too large" });
+						await writeFile(PERSONA_FILE, content, "utf8");
+						return sendJson(res, 200, { ok: true });
+					} catch (error) {
+						return sendJson(res, 400, { ok: false, error: error instanceof Error ? error.message : String(error) });
+					}
+				}
+				let content = "";
+				try {
+					content = await readFile(PERSONA_FILE, "utf8");
+				} catch {}
+				return sendJson(res, 200, { ok: true, content });
+			}
 			const target = url.searchParams.get("path");
 			if (typeof target !== "string" || target.length === 0) {
 				return sendJson(res, 400, { ok: false, error: "missing path" });

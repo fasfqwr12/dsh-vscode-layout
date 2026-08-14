@@ -3,3 +3,6 @@
 *.local.yml
 .dsh/
 attachments/
+
+# playwright ²âÊÔ²úÎï
+.playwright-mcp/
