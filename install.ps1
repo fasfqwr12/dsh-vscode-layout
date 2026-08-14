@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 #  dsh-vscode-layout 一键安装脚本（Windows）
 #  用法：右键 install.ps1 → 使用 PowerShell 运行
 #       或: powershell -ExecutionPolicy Bypass -File install.ps1
@@ -57,7 +57,6 @@ Write-Host '  1) 终端运行: dsh web'
 Write-Host '  2) 浏览器打开 http://127.0.0.1:3080'
 Write-Host ''
 Write-Host '提示:'
-Write-Host '  - 模板配置里的 MCP 段落（qwen-vision/github 等）是占位符，'
-Write-Host '    不需要 MCP 可直接删掉对应段落；需要则填入自己的密钥。'
+Write-Host '  - MCP server 在 dsh 设置面板「MCP 管理」中添加（数据存 ~/.dsh/mcp-servers.json）。'
 Write-Host '  - 补丁按当前 dsh 版本制作，若你的版本不同可能部分失效，'
 Write-Host '    但核心布局（自研插件）不受影响。'

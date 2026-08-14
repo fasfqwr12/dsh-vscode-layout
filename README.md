@@ -47,8 +47,7 @@
 
 > Windows 提示：`~/.dsh/profiles/node_modules/@deepseek-ai/*` 是指向全局安装的 junction——
 > 改官方包文件直接改全局路径即可，两处同时生效。
-> 模板配置里的 MCP 段落（qwen-vision/github 等）是占位符：不需要 MCP 可直接删除对应段落，
-> 不影响布局功能；需要则填入自己的密钥。若已有 `cordis.patch.yml`，手动合并 `vscode-host-files` 段即可。
+> 若已有 `cordis.patch.yml`，手动合并 `vscode-host-files` 段即可；MCP 通过设置面板「MCP 管理」添加。
 
 ## 配置与数据位置
 
