@@ -174,6 +174,10 @@ window.__ModuleLoader__.load({
 			".vk_tabBtn{appearance:none;border:none;background:none;cursor:pointer;color:var(--dsw-alias-label-secondary);padding:7px 12px;font-size:12px;line-height:16px;font-family:inherit;border-bottom:2px solid transparent;transition:color .12s,background-color .12s,border-color .12s}",
 			".vk_tabBtn:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}",
 			".vk_tabBtnActive{color:var(--dsw-alias-label-primary);border-bottom-color:var(--vk-accent)}",
+			// 全局人设按钮（显眼版：accent 描边 + 浅色底 + hover 填充）
+			".vk_personaBtn{margin:4px 6px 4px 2px;padding:4px 11px;border:1px solid var(--vk-accent);border-bottom:1px solid var(--vk-accent);border-radius:7px;color:var(--vk-accent);background:var(--vk-accent-soft);font-weight:600;letter-spacing:.2px;box-shadow:0 0 0 1px transparent;transition:color .12s,background-color .12s,box-shadow .12s,transform .08s}",
+			".vk_personaBtn:hover{color:#fff;background:var(--vk-accent);box-shadow:0 1px 8px var(--vk-accent-ring)}",
+			".vk_personaBtn:active{transform:scale(.97)}",
 			".vk_tabBody{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}",
 			".vk_tabBodyHidden{display:none}",
 			".vk_tabBarSpacer{flex:1}",
@@ -1123,7 +1127,7 @@ window.__ModuleLoader__.load({
 					h("button", { className: "vk_tabBtn" + (tab === "conversation" ? " vk_tabBtnActive" : ""), onClick: () => onTab("conversation") }, "对话"),
 					showDetails ? h("button", { className: "vk_tabBtn" + (tab === "details" ? " vk_tabBtnActive" : ""), onClick: () => onTab("details") }, "详情") : null,
 					h("div", { className: "vk_tabBarSpacer" }),
-					h("button", { className: "vk_tabBtn", title: "全局人设（所有会话生效，类似 CC 的全局 CLAUDE.md）", onClick: () => setPersonaOpen(true) }, "⚙ 人设"),
+					h("button", { className: "vk_tabBtn vk_personaBtn", title: "全局人设（所有会话生效，类似 CC 的全局 CLAUDE.md）", onClick: () => setPersonaOpen(true) }, "🎭 全局人设"),
 					h("button", { className: "vk_tabBtn vk_modeBtn", title: mode === "native" ? "切回分栏模式（文件查看器 + 侧栏对话）" : "切换为全屏对话模式（隐藏文件查看器）", onClick: onToggleMode }, mode === "native" ? "◫ 分栏视图" : "⛶ 全屏对话")
 				),
 				h("div", { className: "vk_tabBody" + (tab === "conversation" ? "" : " vk_tabBodyHidden") }, conversation),
