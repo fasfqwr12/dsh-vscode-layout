@@ -15,18 +15,27 @@
 ## 目录结构
 
 ```
-├── cordis.patch.yml        # dsh profile 补丁配置模板（密钥已脱敏，见「配置」）
-├── patches/node_modules/   # 官方包补丁副本（按相对路径镜像，升级后重放）
-├── plugins/                # 自研插件源码
+├── install.ps1              # Windows 一键安装脚本（自动装插件/打补丁/写配置）
+├── cordis.patch.yml         # dsh profile 补丁配置模板（密钥已脱敏，见「配置」）
+├── patches/node_modules/    # 官方包补丁副本（按相对路径镜像，升级后重放）
+├── plugins/                 # 自研插件源码
 │   ├── dsh-host-files/          # 宿主接口 /vscode-files/*（文件系统 + shiki 高亮）
 │   └── dsh-client-vscode-layout/  # 客户端三栏 IDE 布局
-├── launcher/               # Windows 桌面启动器（vbs + ps1 + 应用图标）
-└── tools/                  # github-mcp-server 官方二进制（MCP 用）
+├── launcher/                # Windows 桌面启动器（vbs + ps1 + 应用图标）
+└── tools/                   # github-mcp-server 官方二进制（MCP 用）
 ```
 
 ## 快速开始（部署到自己的 dsh）
 
 前置：`npm i -g @deepseek-ai/dsh`。本方案在 **Windows** 上开发验证；其他平台需微调路径。
+
+### 一键安装（Windows，推荐）
+
+下载 ZIP 解压后，右键 `install.ps1` → **使用 PowerShell 运行**
+（或 `powershell -ExecutionPolicy Bypass -File install.ps1`）。
+脚本自动完成：装插件 → 打补丁 → 写配置。
+
+### 手动安装
 
 1. **安装插件**：把 `plugins/` 下两个包复制到 `~/.dsh/profiles/node_modules/@anoslide/`
 2. **打补丁**：把 `patches/node_modules/@deepseek-ai/` 覆盖到全局 dsh 安装的对应路径
@@ -36,6 +45,8 @@
 
 > Windows 提示：`~/.dsh/profiles/node_modules/@deepseek-ai/*` 是指向全局安装的 junction——
 > 改官方包文件直接改全局路径即可，两处同时生效。
+> 模板配置里的 MCP 段落（qwen-vision/github 等）是占位符：不需要 MCP 可直接删除对应段落，
+> 不影响布局功能；需要则填入自己的密钥。若已有 `cordis.patch.yml`，手动合并 `vscode-host-files` 段即可。
 
 ## 配置（cordis.patch.yml 模板说明）
 
