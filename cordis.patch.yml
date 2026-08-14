@@ -2,56 +2,7 @@
 # a top-level YAML array of loader patch entries (id-targeted config
 # overrides, disables, and insert lists; `!!js` expressions allowed).
 
-# ── MCP: qwen-vision（识图/OCR，配置移植自 Claude Code ~/.claude.json）──
-# 工具: mcp__qwen-vision__analyze_image / analyze_url / ocr_image / ocr_pdf / read_pdf
-- insert:
-    - id: mcp-qwen-vision
-      name: '@deepseek-ai/dsh-mcp-client'
-      config:
-        serverName: qwen-vision
-        transport: stdio
-        command: node.exe
-        args: ['<你的 qwen-vision MCP 入口，如 D:/path/qwen-vision-mcp/index.js>']
-        env:
-          DASHSCOPE_API_KEY: '<你的百炼 DashScope API Key>'
-          DASHSCOPE_BASE_URL: '<你的 DashScope 服务地址>'
-
-# ── MCP: playwright（浏览器自动化，使用本机 Edge）──
-# 工具: mcp__playwright__browser_navigate / browser_screenshot / browser_click 等
-- insert:
-    - id: mcp-playwright
-      name: '@deepseek-ai/dsh-mcp-client'
-      config:
-        serverName: playwright
-        transport: stdio
-        command: cmd.exe
-        args: ['/c', 'npx --yes @playwright/mcp@latest --browser msedge']
-
-# ── MCP: context7（最新库文档查询，配置移植自 Claude Code）──
-# 工具: mcp__context7__search_docs / get_library_docs 等
-- insert:
-    - id: mcp-context7
-      name: '@deepseek-ai/dsh-mcp-client'
-      config:
-        serverName: context7
-        transport: stdio
-        command: cmd.exe
-        args: ['/c', 'npx --yes @upstash/context7-mcp@latest']
-
-# ── MCP: github（GitHub 仓库操作，官方 github-mcp-server v1.9.0 本地二进制）──
-# 工具: mcp__github__create_repository / push_files / create_issue 等
-- insert:
-    - id: mcp-github
-      name: '@deepseek-ai/dsh-mcp-client'
-      config:
-        serverName: github
-        transport: stdio
-        command: '<你的仓库路径>\tools\github-mcp-server\github-mcp-server.exe'
-        args: ['stdio']
-        env:
-          GITHUB_PERSONAL_ACCESS_TOKEN: '<你的 GitHub PAT>'
-
-# ── VS Code 布局魔改：文件树/查看器的宿主接口 ──
+# ── VS Code 布局魔改：文件树/查看器/全局人设/MCP 管理的宿主接口 ──
 - insert:
     - id: vscode-host-files
       name: '@anoslide/dsh-host-files'

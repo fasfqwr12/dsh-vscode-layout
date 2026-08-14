@@ -367,7 +367,29 @@ window.__ModuleLoader__.load({
 			".vk_personaMsgErr{color:#f14c4c}",
 			".vk_personaSave{background:var(--vk-accent);color:#fff;border-radius:6px;padding:6px 16px;font-weight:600;border:none;cursor:pointer;font-size:12.5px}",
 			".vk_personaSave:hover{filter:brightness(1.1)}",
-			".vk_personaSave:disabled{opacity:.5;cursor:default}"
+			".vk_personaSave:disabled{opacity:.5;cursor:default}",
+			// Skill / MCP 管理分区
+			".vk_mgrList{display:flex;flex-direction:column;gap:8px}",
+			".vk_mgrRow{display:flex;align-items:center;gap:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 12px;background:var(--dsw-specific-input-fill,var(--dsw-specific-sidebar-fill))}",
+			".vk_mgrInfo{flex:1;min-width:0}",
+			".vk_mgrName{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+			".vk_mgrMeta{font-size:11.5px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}",
+			".vk_mgrBadge{flex:none;font-size:11px;border-radius:999px;padding:2px 9px;font-weight:600}",
+			".vk_mgrBadgeOn{color:#73c991;background:rgba(115,201,145,.14)}",
+			".vk_mgrBadgeOff{color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-interactive-bg-hover)}",
+			".vk_mgrBtn{flex:none;appearance:none;border:1px solid var(--dsw-alias-border-l1);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;font-family:inherit}",
+			".vk_mgrBtn:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l2)}",
+			".vk_mgrBtn:disabled{opacity:.5;cursor:default}",
+			".vk_mgrBtnDanger{color:#f14c4c;border-color:rgba(241,76,76,.35)}",
+			".vk_mgrBtnDanger:hover{background:rgba(241,76,76,.1);color:#f14c4c}",
+			".vk_mgrBtnPrimary{background:var(--vk-accent);color:#fff;border-color:transparent;font-weight:600}",
+			".vk_mgrBtnPrimary:hover{filter:brightness(1.1);color:#fff}",
+			".vk_mgrHead{display:flex;align-items:center;gap:8px;margin-bottom:10px}",
+			".vk_mgrEmpty{font-size:12px;color:var(--dsw-alias-label-secondary);padding:18px 0;text-align:center}",
+			".vk_mgrAddForm{display:flex;flex-direction:column;gap:8px;border:1px dashed var(--dsw-alias-border-l2);border-radius:8px;padding:12px;margin-bottom:10px}",
+			".vk_mgrInput{background:var(--dsw-specific-input-fill,var(--dsw-specific-sidebar-fill));color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:6px 10px;font-size:12.5px;font-family:inherit}",
+			".vk_mgrInput:focus{outline:none;border-color:var(--vk-accent)}",
+			".vk_mgrLabel{font-size:11.5px;color:var(--dsw-alias-label-secondary)}"
 		].join("");
 		{
 			const tagId = "@anoslide/dsh-client-vscode-layout/vscode.module.css";
@@ -1088,6 +1110,160 @@ window.__ModuleLoader__.load({
 		}
 
 		// ──────────────────────────────────────────────────────────────
+		// 组件：Skill 管理分区（~/.dsh/skills，开关/删除）
+		// ──────────────────────────────────────────────────────────────
+		function SkillSection() {
+			const [skills, setSkills] = react.useState(null);
+			const [busy, setBusy] = react.useState(false);
+			const [err, setErr] = react.useState(null);
+			const refresh = react.useCallback(() => {
+				let dead = false;
+				setBusy(true);
+				fetch("/vscode-files/skills")
+					.then((r) => r.json())
+					.then((d) => { if (!dead) { setSkills(d && d.ok ? d.skills : []); setErr(null); } })
+					.catch((e) => { if (!dead) setErr(String(e)); })
+					.finally(() => { if (!dead) setBusy(false); });
+				return () => { dead = true; };
+			}, []);
+			react.useEffect(refresh, [refresh]);
+			const act = (path, kind) => {
+				setBusy(true);
+				setErr(null);
+				fetch("/vscode-files/skills/" + kind, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) })
+					.then((r) => r.json())
+					.then((d) => { if (!d || !d.ok) setErr((d && d.error) || "操作失败"); refresh(); })
+					.catch((e) => { setErr(String(e)); setBusy(false); });
+			};
+			return h("div", { className: "vk_personaSection" },
+				h("div", { className: "vk_mgrHead" },
+					h("div", { className: "vk_personaDesc", style: { flex: 1 } }, "管理 ~/.dsh/skills 下的全局 Skill（目录含 SKILL.md，或单文件 .md）。关闭 = 标记 .disabled，不删除内容。"),
+					h("button", { className: "vk_mgrBtn", onClick: refresh, disabled: busy }, "刷新")
+				),
+				err !== null ? h("div", { className: "vk_personaMsg vk_personaMsgErr" }, String(err)) : null,
+				skills === null ? h("div", { className: "vk_mgrEmpty" }, "加载中…")
+					: skills.length === 0 ? h("div", { className: "vk_mgrEmpty" }, "暂无全局 Skill（~/.dsh/skills 为空）")
+					: h("div", { className: "vk_mgrList" },
+						skills.map((s) => h("div", { key: s.path, className: "vk_mgrRow" },
+							h("div", { className: "vk_mgrInfo" },
+								h("div", { className: "vk_mgrName" }, s.name),
+								h("div", { className: "vk_mgrMeta" }, (s.kind === "dir" ? "目录" : "单文件") + " · " + s.path)
+							),
+							h("span", { className: "vk_mgrBadge " + (s.enabled ? "vk_mgrBadgeOn" : "vk_mgrBadgeOff") }, s.enabled ? "开启" : "关闭"),
+							h("button", { className: "vk_mgrBtn", disabled: busy, onClick: () => act(s.path, "toggle") }, s.enabled ? "关闭" : "开启"),
+							h("button", { className: "vk_mgrBtn vk_mgrBtnDanger", disabled: busy, onClick: () => { if (window.confirm("确定删除 Skill「" + s.name + "」？（送回收站，可恢复）")) act(s.path, "delete"); } }, "删除")
+						))
+					)
+			);
+		}
+
+		// ──────────────────────────────────────────────────────────────
+		// 组件：MCP 管理分区（~/.dsh/mcp-servers.json，开关/删除/添加）
+		// ──────────────────────────────────────────────────────────────
+		function MCPSection() {
+			const [servers, setServers] = react.useState(null);
+			const [busy, setBusy] = react.useState(false);
+			const [err, setErr] = react.useState(null);
+			const [showAdd, setShowAdd] = react.useState(false);
+			const [form, setForm] = react.useState({ serverName: "", transport: "stdio", command: "", args: "", url: "", env: "{}" });
+			const refresh = react.useCallback(() => {
+				let dead = false;
+				setBusy(true);
+				fetch("/vscode-files/mcp")
+					.then((r) => r.json())
+					.then((d) => { if (!dead) { setServers(d && d.ok ? d.servers : []); setErr(null); } })
+					.catch((e) => { if (!dead) setErr(String(e)); })
+					.finally(() => { if (!dead) setBusy(false); });
+				return () => { dead = true; };
+			}, []);
+			react.useEffect(refresh, [refresh]);
+			const act = (id, kind) => {
+				setBusy(true);
+				setErr(null);
+				fetch("/vscode-files/mcp/" + kind, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) })
+					.then((r) => r.json())
+					.then((d) => { if (!d || !d.ok) setErr((d && d.error) || "操作失败"); refresh(); })
+					.catch((e) => { setErr(String(e)); setBusy(false); });
+			};
+			const submitAdd = () => {
+				let env = {};
+				try {
+					env = JSON.parse(form.env || "{}");
+					if (typeof env !== "object" || env === null || Array.isArray(env)) throw new Error("not object");
+				} catch {
+					setErr("环境变量需为 JSON 对象，如 {\"KEY\":\"value\"}");
+					return;
+				}
+				setBusy(true);
+				setErr(null);
+				fetch("/vscode-files/mcp/add", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
+					serverName: form.serverName.trim(),
+					transport: form.transport,
+					command: form.command.trim(),
+					args: form.args.split(/[\s,]+/).filter(Boolean),
+					url: form.url.trim(),
+					env
+				}) })
+					.then((r) => r.json())
+					.then((d) => {
+						setBusy(false);
+						if (!d || !d.ok) setErr((d && d.error) || "添加失败");
+						else {
+							setShowAdd(false);
+							setForm({ serverName: "", transport: "stdio", command: "", args: "", url: "", env: "{}" });
+							refresh();
+						}
+					})
+					.catch((e) => { setBusy(false); setErr(String(e)); });
+			};
+			return h("div", { className: "vk_personaSection" },
+				h("div", { className: "vk_mgrHead" },
+					h("div", { className: "vk_personaDesc", style: { flex: 1 } }, "管理 MCP server（~/.dsh/mcp-servers.json，含密钥，请勿外传）。开关即时生效，无需重启。"),
+					h("button", { className: "vk_mgrBtn", onClick: () => setShowAdd(!showAdd) }, showAdd ? "取消添加" : "＋ 添加 MCP"),
+					h("button", { className: "vk_mgrBtn", onClick: refresh, disabled: busy }, "刷新")
+				),
+				err !== null ? h("div", { className: "vk_personaMsg vk_personaMsgErr" }, String(err)) : null,
+				showAdd ? h("div", { className: "vk_mgrAddForm" },
+					h("div", { className: "vk_mgrLabel" }, "serverName（唯一标识，1-32 位字母/数字/_-）"),
+					h("input", { className: "vk_mgrInput", value: form.serverName, onChange: (e) => setForm({ ...form, serverName: e.target.value }), placeholder: "my-server" }),
+					h("div", { className: "vk_mgrLabel" }, "传输类型"),
+					h("select", { className: "vk_mgrInput", value: form.transport, onChange: (e) => setForm({ ...form, transport: e.target.value }) },
+						h("option", { value: "stdio" }, "stdio（本地进程）"),
+						h("option", { value: "streamable-http" }, "streamable-http（远程 URL）")
+					),
+					form.transport === "stdio"
+						? h("div", { className: "vk_mgrLabel" }, "命令（参数用空格/逗号分隔）")
+						: h("div", { className: "vk_mgrLabel" }, "URL"),
+					form.transport === "stdio"
+						? h("input", { className: "vk_mgrInput", value: form.command, onChange: (e) => setForm({ ...form, command: e.target.value }), placeholder: "npx @playwright/mcp@latest --browser msedge" })
+						: h("input", { className: "vk_mgrInput", value: form.url, onChange: (e) => setForm({ ...form, url: e.target.value }), placeholder: "https://example.com/mcp" }),
+					form.transport === "stdio"
+						? h("div", { className: "vk_mgrLabel" }, "环境变量（JSON 对象，可含密钥）")
+						: h("div", { className: "vk_mgrLabel" }, "请求头（JSON 对象，可含密钥）"),
+					h("input", { className: "vk_mgrInput", value: form.env, onChange: (e) => setForm({ ...form, env: e.target.value }), placeholder: '{"KEY":"value"}' }),
+					h("div", { className: "vk_personaFoot" },
+						h("button", { className: "vk_mgrBtn", onClick: () => setShowAdd(false) }, "取消"),
+						h("div", { style: { flex: 1 } }),
+						h("button", { className: "vk_mgrBtn vk_mgrBtnPrimary", disabled: busy, onClick: submitAdd }, "添加并启用")
+					)
+				) : null,
+				servers === null ? h("div", { className: "vk_mgrEmpty" }, "加载中…")
+					: servers.length === 0 ? h("div", { className: "vk_mgrEmpty" }, "暂无 MCP server，点「＋ 添加 MCP」添加")
+					: h("div", { className: "vk_mgrList" },
+						servers.map((s) => h("div", { key: s.id, className: "vk_mgrRow" },
+							h("div", { className: "vk_mgrInfo" },
+								h("div", { className: "vk_mgrName" }, s.serverName),
+								h("div", { className: "vk_mgrMeta" }, (s.transport === "stdio" ? (s.command || "stdio") : (s.url || "http")) + (s.hasEnv ? " · 含环境变量" : ""))
+							),
+							h("span", { className: "vk_mgrBadge " + (s.enabled ? "vk_mgrBadgeOn" : "vk_mgrBadgeOff") }, s.enabled ? "开启" : "关闭"),
+							h("button", { className: "vk_mgrBtn", disabled: busy, onClick: () => act(s.id, "toggle") }, s.enabled ? "关闭" : "开启"),
+							h("button", { className: "vk_mgrBtn vk_mgrBtnDanger", disabled: busy, onClick: () => { if (window.confirm("确定删除 MCP「" + s.serverName + "」？")) act(s.id, "delete"); } }, "删除")
+						))
+					)
+			);
+		}
+
+		// ──────────────────────────────────────────────────────────────
 		// 组件：左栏（文件/会话 双 Tab）与 右栏（对话/详情 双 Tab）
 		// ──────────────────────────────────────────────────────────────
 		function LeftPanel({ tab, onTab, tree, sessionSlot, collapsed, onExpand, onCollapse }) {
@@ -1469,6 +1645,20 @@ window.__ModuleLoader__.load({
 				order: 1,
 				label: () => "全局人设"
 			}, PersonaSection)), "vscode-layout: settings persona section");
+			// 注册「Skill 管理」设置分区
+			ctx.effect(() => ctx.slots.inject("settings.section", () => ctx.slots.register({
+				name: "settings.section",
+				id: "skills",
+				order: 2,
+				label: () => "Skill 管理"
+			}, SkillSection)), "vscode-layout: settings skills section");
+			// 注册「MCP 管理」设置分区
+			ctx.effect(() => ctx.slots.inject("settings.section", () => ctx.slots.register({
+				name: "settings.section",
+				id: "mcp",
+				order: 3,
+				label: () => "MCP 管理"
+			}, MCPSection)), "vscode-layout: settings mcp section");
 			ctx.effect(() => {
 				const presenter = new ThemePresenter();
 				presenter.apply(ctx.theme.getTheme());

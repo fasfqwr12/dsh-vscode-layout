@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 #  dsh-vscode-layout 一键安装脚本（Windows）
 #  用法：右键 install.ps1 → 使用 PowerShell 运行
 #       或: powershell -ExecutionPolicy Bypass -File install.ps1

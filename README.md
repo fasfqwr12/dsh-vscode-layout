@@ -10,6 +10,7 @@
 - **多标签**：服务端 shiki 语法高亮（**跟随浅色/深色主题自动切换色板**）、行号、只读查看 + 编辑模式（Ctrl+S 保存、脏标记）、拖拽排序、右键菜单、状态持久化
 - **双模式**：全屏对话 / 分栏视图一键切换
 - **对话增强**：工具详情与思考内容限高内滚、斜杠命令汉化、**非多模态模型的图片发送桥接**（自动转本地路径 → 视觉 MCP 识图）
+- **设置面板管理**：全局人设（所有会话生效）、Skill 开关/删除、MCP 开关/删除/添加（动态挂载，即时生效）
 - **全局人设**：类似 Claude Code 的全局 CLAUDE.md，~/.dsh/global-persona.md 注入所有会话系统提示，改后即时生效（右栏「⚙ 人设」编辑）
 - **桌面启动器**（Windows）：Edge app 模式独立窗口、自动拉起/隐藏服务、一键停止、自定义应用图标
 
@@ -49,18 +50,16 @@
 > 模板配置里的 MCP 段落（qwen-vision/github 等）是占位符：不需要 MCP 可直接删除对应段落，
 > 不影响布局功能；需要则填入自己的密钥。若已有 `cordis.patch.yml`，手动合并 `vscode-host-files` 段即可。
 
-## 配置（cordis.patch.yml 模板说明）
+## 配置与数据位置
 
-模板中所有 `<...>` 占位符需替换为你自己的值，**切勿直接使用模板运行**：
+| 内容 | 位置 | 说明 |
+|---|---|---|
+| profile 补丁配置 | ~/.dsh/profiles/web/cordis.patch.yml | 复制仓库模板，只挂载自研插件，无密钥 |
+| MCP server | ~/.dsh/mcp-servers.json | 设置面板「MCP 管理」添加/开关/删除（含密钥，勿提交仓库） |
+| 全局人设 | ~/.dsh/global-persona.md | 设置面板「全局人设」编辑 |
+| 全局 Skill | ~/.dsh/skills | 设置面板「Skill 管理」开关/删除 |
 
-| 占位符 | 说明 |
-|---|---|
-| `<你的 qwen-vision MCP 入口>` | 视觉 MCP 服务入口（如阿里云百炼 DashScope 的 vision MCP），需自备 |
-| `<你的百炼 DashScope API Key>` | 对应服务的 API Key |
-| `<你的 DashScope 服务地址>` | 对应服务的 base URL |
-| `<你的 GitHub PAT>` | github-mcp-server 用的 GitHub Personal Access Token |
-| `<你的仓库路径>` | 本仓库在本机的路径（`tools/` 下的二进制所在目录） |
-
+> 仓库内所有配置文件均为脱敏模板/示例，真实密钥只存在于本机 ~/.dsh。
 ## 魔改清单
 
 ### 1. 斜杠命令汉化（6 个官方包）
