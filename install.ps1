@@ -3,6 +3,8 @@
 #  用法：右键 install.ps1 → 使用 PowerShell 运行
 #       或: powershell -ExecutionPolicy Bypass -File install.ps1
 #  自动完成: 装插件 → 打补丁 → 写 cordis.patch.yml
+#  提示：右键运行时窗口会在按回车后关闭；想看到完整日志，
+#        请先在已打开的终端里运行 powershell -ExecutionPolicy Bypass -File .\install.ps1
 # ============================================================
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -12,7 +14,10 @@ Write-Host '===== dsh-vscode-layout 安装器 ====='
 # 0) 前置检查
 $dshCmd = Get-Command dsh -ErrorAction SilentlyContinue
 if (-not $dshCmd) {
+    Write-Host ''
     Write-Host '未找到 dsh 命令，请先安装: npm i -g @deepseek-ai/dsh' -ForegroundColor Yellow
+    Write-Host '安装完 npm 后请【重新打开】这个窗口再运行一次。'
+    Read-Host '按回车键关闭'
     exit 1
 }
 
@@ -20,7 +25,10 @@ if (-not $dshCmd) {
 $globalRoot = Join-Path $env:APPDATA 'npm\node_modules'
 $dshPkg = Join-Path $globalRoot '@deepseek-ai\dsh'
 if (-not (Test-Path $dshPkg)) {
+    Write-Host ''
     Write-Host "未找到全局 dsh 包目录: $dshPkg" -ForegroundColor Yellow
+    Write-Host '请确认执行过: npm i -g @deepseek-ai/dsh'
+    Read-Host '按回车键关闭'
     exit 1
 }
 
@@ -60,3 +68,5 @@ Write-Host '提示:'
 Write-Host '  - MCP server 在 dsh 设置面板「MCP 管理」中添加（数据存 ~/.dsh/mcp-servers.json）。'
 Write-Host '  - 补丁按当前 dsh 版本制作，若你的版本不同可能部分失效，'
 Write-Host '    但核心布局（自研插件）不受影响。'
+Write-Host ''
+Read-Host '按回车键关闭此窗口'
