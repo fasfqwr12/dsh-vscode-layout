@@ -416,12 +416,13 @@ window.__ModuleLoader__.load({
 							active: typeof d.active === "string" ? d.active : null,
 							sidebarTab: d.sidebarTab === "sessions" ? "sessions" : "files",
 							root: typeof d.root === "string" && d.root.length > 0 ? d.root : null,
+							roots: d.roots && typeof d.roots === "object" && !Array.isArray(d.roots) ? d.roots : {},
 							mode: d.mode === "native" ? "native" : "ide"
 						};
 					}
 				}
 			} catch {}
-			return { tabs: [], active: null, sidebarTab: "files", root: null, mode: "ide" };
+			return { tabs: [], active: null, sidebarTab: "files", root: null, roots: {}, mode: "ide" };
 		}
 		function saveTabs(state) {
 			try {
@@ -1353,6 +1354,7 @@ window.__ModuleLoader__.load({
 		// ──────────────────────────────────────────────────────────────
 		function AppFrame({ useStore, useSessions, actions, renderSlot, pickFolder }) {
 			const panels = useStore((s) => s);
+			const currentSessionId = useSessions((s) => s.current);
 			const sessionCwd = useSessions((s) => {
 				const current = s.current;
 				if (current === void 0) return void 0;
@@ -1435,11 +1437,21 @@ window.__ModuleLoader__.load({
 				setTabsState((prev) => (prev.sidebarTab === tab ? prev : { ...prev, sidebarTab: tab }));
 			}, []);
 			const openFolder = react.useCallback((p) => {
-				setTabsState((prev) => ({ ...prev, root: p }));
-			}, []);
+				setTabsState((prev) => {
+					const sid = currentSessionId;
+					if (sid === void 0) return { ...prev, root: p };
+					return { ...prev, roots: { ...(prev.roots ?? {}), [sid]: p } };
+				});
+			}, [currentSessionId]);
 			const closeFolder = react.useCallback(() => {
-				setTabsState((prev) => ({ ...prev, root: null }));
-			}, []);
+				setTabsState((prev) => {
+					const sid = currentSessionId;
+					if (sid === void 0) return { ...prev, root: null };
+					const roots = { ...(prev.roots ?? {}) };
+					delete roots[sid];
+					return { ...prev, roots };
+				});
+			}, [currentSessionId]);
 			const toggleMode = react.useCallback(() => {
 				setTabsState((prev) => {
 					const goingNative = prev.mode !== "native";
@@ -1482,14 +1494,18 @@ window.__ModuleLoader__.load({
 			react.useEffect(() => {
 				if (!native && panels.rightTab === "details") actions.setRightTab("conversation");
 			}, [native, panels.rightTab, actions]);
-			const fileRoot = tabsState.root != null ? tabsState.root : sessionCwd;
+			// 文件树按会话隔离：roots[sessionId] ?? （首次迁移沿用旧 root）?? 会话工作区
+			const roots = tabsState.roots ?? {};
+			const sessionRoot = currentSessionId !== void 0 ? (roots[currentSessionId] ?? null) : null;
+			const migrated = Object.keys(roots).length === 0 && tabsState.root != null;
+			const fileRoot = sessionRoot != null ? sessionRoot : (migrated ? tabsState.root : sessionCwd);
 			const left = h(LeftPanel, {
 				tab: tabsState.sidebarTab,
 				onTab: setSidebarTab,
 				collapsed: sidebarCollapsed,
 				onExpand: () => actions.toggleSidebar(),
 				onCollapse: () => actions.toggleSidebar(),
-				tree: h(FileTree, { root: fileRoot, custom: tabsState.root != null, onOpenFolder: openFolder, onCloseFolder: closeFolder, onOpenFile: openFile, onPickNative: pickFolder, activePath: tabsState.active, onDeleted, onRenamed }),
+				tree: h(FileTree, { root: fileRoot, custom: sessionRoot != null, onOpenFolder: openFolder, onCloseFolder: closeFolder, onOpenFile: openFile, onPickNative: pickFolder, activePath: tabsState.active, onDeleted, onRenamed }),
 				sessionSlot: renderSlot("sidebar", { collapsed: sidebarCollapsed, width: cols.sidebar })
 			});
 			const detailsSlot = renderSlot("details", {});
