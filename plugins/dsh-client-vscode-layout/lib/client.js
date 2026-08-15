@@ -1468,7 +1468,8 @@ window.__ModuleLoader__.load({
 				if (detailsSeq === 0 || detailsSeq === lastDetailsSeq.current) return;
 				lastDetailsSeq.current = detailsSeq;
 				if (native) {
-					actions.setRightTab("details");
+					// 全屏模式不自动切右栏 Tab：切到「详情」会隐藏对话面板/输入框，
+					// 导致思考期间无法插队输入新消息（朋友实测反馈的 bug）
 					return;
 				}
 				// 分栏模式：轨迹在中心区开标签
