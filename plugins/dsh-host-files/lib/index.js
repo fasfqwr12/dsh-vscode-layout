@@ -32,6 +32,33 @@ const PERSONA_ORDER = 1;
 const MCP_STATE_FILE = join(homedir(), ".dsh", "mcp-servers.json");
 /** 全局 skill 目录（~/.dsh/skills）。 */
 const SKILLS_ROOT = join(homedir(), ".dsh", "skills");
+// ── 空闲自动关闭：所有页面心跳停止后关闭服务器 ──
+/** 心跳 TTL（毫秒）：超过该时长无心跳视为页面已关闭。需大于浏览器后台标签节流上限（约 60s）。 */
+const HEARTBEAT_TTL_MS = 120000;
+/** 检查间隔（毫秒）。 */
+const HEARTBEAT_CHECK_MS = 10000;
+/** 全部页面离线后的确认延迟（毫秒），期间有新心跳则取消关闭。 */
+const SHUTDOWN_CONFIRM_MS = 5000;
+const heartbeats = new Map(); // sid -> 最近心跳时间戳
+let heartbeatSeen = false; // 是否收到过心跳（从未收到则永不自动关闭，避免误杀无插件页面）
+let shutdownTimer = null;
+let shuttingDown = false;
+/** 关闭服务器：先卸载我们挂载的 MCP（杀 stdio 子进程），再退出进程。 */
+async function shutdownServer() {
+	if (shuttingDown) return;
+	shuttingDown = true;
+	try {
+		for (const id of [...mcpDisposers.keys()]) {
+			const dispose = mcpDisposers.get(id);
+			mcpDisposers.delete(id);
+			try {
+				await dispose();
+			} catch {}
+		}
+	} catch {}
+	// 兜底：稍等（让 MCP 卸载完成/其他子进程收到 stdin EOF）后退出
+	setTimeout(() => process.exit(0), 1500);
+}
 
 function sendJson(res, code, value) {
 	const body = JSON.stringify(value);
@@ -350,6 +377,36 @@ function apply(ctx) {
 		});
 	});
 	rootCtx = ctx;
+	// 空闲自动关闭监控：心跳全部过期 → 确认后关闭服务器
+	ctx.effect(() => {
+		const timer = setInterval(() => {
+			const now = Date.now();
+			for (const [sid, ts] of heartbeats) {
+				if (now - ts > HEARTBEAT_TTL_MS) heartbeats.delete(sid);
+			}
+			if (!heartbeatSeen) return; // 从未有心跳：不干预
+			if (heartbeats.size > 0) {
+				if (shutdownTimer !== null) {
+					clearTimeout(shutdownTimer);
+					shutdownTimer = null;
+				}
+				return;
+			}
+			if (shutdownTimer === null) {
+				shutdownTimer = setTimeout(() => {
+					shutdownTimer = null;
+					if (heartbeats.size === 0) shutdownServer();
+				}, SHUTDOWN_CONFIRM_MS);
+			}
+		}, HEARTBEAT_CHECK_MS);
+		return () => {
+			clearInterval(timer);
+			if (shutdownTimer !== null) {
+				clearTimeout(shutdownTimer);
+				shutdownTimer = null;
+			}
+		};
+	}, "dsh-host-files: idle shutdown monitor");
 	// MCP 运行时管理：启动时挂载 enabled 的 server，卸载时全部释放
 	ctx.effect(() => {
 		(async () => {
@@ -392,6 +449,15 @@ function apply(ctx) {
 					content = await readFile(PERSONA_FILE, "utf8");
 				} catch {}
 				return sendJson(res, 200, { ok: true, content });
+			}
+			// 页面心跳：记录存活页面（最后一个页面关闭后自动关闭服务器）
+			if (url.pathname === "/vscode-files/heartbeat" && req.method === "GET") {
+				const sid = url.searchParams.get("sid") ?? "";
+				if (sid.length > 0 && sid.length <= 64) {
+					heartbeats.set(sid, Date.now());
+					heartbeatSeen = true;
+				}
+				return sendJson(res, 200, { ok: true });
 			}
 			// Skill / MCP 管理（无 path 参数）
 			if (url.pathname === "/vscode-files/skills" && req.method === "GET") {

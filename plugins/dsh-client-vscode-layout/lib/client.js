@@ -1639,6 +1639,29 @@ window.__ModuleLoader__.load({
 		// ──────────────────────────────────────────────────────────────
 		const inject = ["slots", "theme"];
 		function apply(ctx) {
+			// 心跳：告知 host 页面存活（host 据此在最后一个页面关闭后自动关闭服务器）。
+			// sid 存 sessionStorage：同一标签页刷新后保持同一身份，避免误判为多个页面。
+			{
+				let sid = "";
+				try { sid = sessionStorage.getItem("vk-layout:sid") || ""; } catch { /* ignore */ }
+				if (sid === "") {
+					sid = "p" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+					try { sessionStorage.setItem("vk-layout:sid", sid); } catch { /* ignore */ }
+				}
+				const beat = () => {
+					try {
+						fetch("/vscode-files/heartbeat?sid=" + encodeURIComponent(sid), { keepalive: true, cache: "no-store" }).catch(() => {});
+					} catch { /* ignore */ }
+				};
+				beat();
+				setInterval(beat, 10000);
+				try {
+					document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") beat(); });
+				} catch { /* ignore */ }
+				try {
+					window.addEventListener("pagehide", beat);
+				} catch { /* ignore */ }
+			}
 			// 自愈：插件已激活但 root 槽未生效（页面回退原生布局）时自动重载，最多 2 次。
 			// 覆盖 dsh boot 偶发竞态：插件激活成功但 AppFrame 未渲染，用户会看到原生界面+渲染伪影。
 			// 轮询等待 10s（正常渲染远快于此，避免冷启动误判），超时仍无 vk_frame 才重载。
