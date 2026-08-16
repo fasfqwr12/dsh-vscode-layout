@@ -158,6 +158,8 @@ window.__ModuleLoader__.load({
 			".vk_colLeft{background:var(--dsw-specific-sidebar-fill);border-right:1px solid var(--dsw-alias-border-l1);min-width:0;overflow:hidden;display:flex;flex-direction:column}",
 			".vk_colCenter{flex-direction:column;min-width:0;display:flex;overflow:hidden}",
 			".vk_colRight{border-left:1px solid var(--dsw-alias-border-l2);min-width:0;overflow:hidden;display:flex;flex-direction:column;background:var(--dsw-alias-bg-base)}",
+			// 窄视口/右栏收起（列宽 0）时彻底隐藏右栏，避免残留 1px 边框+背景形成黑色竖线
+			".vk_frame[data-right-zero] .vk_colRight{display:none}",
 			".vk_overlayLayer{z-index:20;pointer-events:none;position:absolute;inset:0}.vk_overlayLayer>*{pointer-events:auto}",
 			// 拖拽手柄：悬停/拖动时浮现 accent 亮条
 			".vk_handle{cursor:col-resize;z-index:2;touch-action:none;width:8px;margin-left:-4px;position:absolute;top:0;bottom:0}",
@@ -1528,6 +1530,7 @@ window.__ModuleLoader__.load({
 				style: { gridTemplateColumns: gridCols },
 				"data-native": native || void 0,
 				"data-sidebar-collapsed": sidebarCollapsed || void 0,
+				"data-right-zero": (!native && cols.right === 0) || void 0,
 				"data-dragging": dragging || void 0,
 				children: [
 					left,
