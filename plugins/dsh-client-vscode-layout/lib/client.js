@@ -1639,6 +1639,30 @@ window.__ModuleLoader__.load({
 		// ──────────────────────────────────────────────────────────────
 		const inject = ["slots", "theme"];
 		function apply(ctx) {
+			// 自愈：插件已激活但 root 槽未生效（页面回退原生布局）时自动重载，最多 2 次。
+			// 覆盖 dsh boot 偶发竞态：插件激活成功但 AppFrame 未渲染，用户会看到原生界面+渲染伪影。
+			// 轮询等待 10s（正常渲染远快于此，避免冷启动误判），超时仍无 vk_frame 才重载。
+			{
+				const KEY = "vk-layout:selfheal";
+				let attempts = 0;
+				try { attempts = parseInt(sessionStorage.getItem(KEY) || "0", 10) || 0; } catch { /* ignore */ }
+				if (attempts < 2) {
+					const start = Date.now();
+					const timer = setInterval(() => {
+						try {
+							if (document.querySelector(".vk_frame") !== null) {
+								clearInterval(timer);
+								return;
+							}
+							if (Date.now() - start > 10000) {
+								clearInterval(timer);
+								sessionStorage.setItem(KEY, String(attempts + 1));
+								location.reload();
+							}
+						} catch { /* ignore */ }
+					}, 1000);
+				}
+			}
 			const layout = new LayoutController();
 			const pickFolder = async () => {
 				const ws = ctx.get("workspaces");
