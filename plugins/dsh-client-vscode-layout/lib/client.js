@@ -164,7 +164,8 @@ window.__ModuleLoader__.load({
 			// 拖拽手柄：悬停/拖动时浮现 accent 亮条
 			".vk_handle{cursor:col-resize;z-index:2;touch-action:none;width:8px;margin-left:-4px;position:absolute;top:0;bottom:0}",
 			".vk_handle::after{content:'';position:absolute;top:0;bottom:0;left:3px;width:2px;border-radius:1px;background:transparent;transition:background-color .15s}",
-			".vk_handle:hover::after,.vk_handle[data-dragging]::after{background:var(--vk-accent)}",
+			// 仅拖动时显示指示线；hover 不显示，避免鼠标停在分隔线区域时出现常驻竖线（误认为渲染 bug）
+			".vk_handle[data-dragging]::after{background:var(--vk-accent)}",
 			// ── 滚动条：细、半透明、贴主题；标签条隐藏但可滚 ─────────────
 			".vk_tree,.vk_viewer,.vk_editorInput{scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l1) transparent}",
 			".vk_tree::-webkit-scrollbar,.vk_viewer::-webkit-scrollbar,.vk_editorInput::-webkit-scrollbar{width:10px;height:10px}",
@@ -1329,17 +1330,22 @@ window.__ModuleLoader__.load({
 					callbacks.current.onDrag(latest.current - origin.current);
 				});
 			}, []);
-			const onPointerUp = react.useCallback((e) => {
-				if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
-				e.currentTarget.releasePointerCapture(e.pointerId);
+			const resetDrag = react.useCallback(() => {
 				if (frame.current !== null) {
 					cancelAnimationFrame(frame.current);
 					frame.current = null;
 				}
-				callbacks.current.onDrag(latest.current - origin.current);
 				setDragging(false);
 				callbacks.current.onEnd();
 			}, []);
+			const onPointerUp = react.useCallback((e) => {
+				// capture 可能已丢失（元素重渲染/窗口失焦），此时也必须复位，否则指示线常驻
+				if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+					e.currentTarget.releasePointerCapture(e.pointerId);
+					callbacks.current.onDrag(latest.current - origin.current);
+				}
+				resetDrag();
+			}, [resetDrag]);
 			return h("div", {
 				className: "vk_handle",
 				style: { left: props.left },
@@ -1347,7 +1353,9 @@ window.__ModuleLoader__.load({
 				"data-dragging": dragging || void 0,
 				onPointerDown,
 				onPointerMove,
-				onPointerUp
+				onPointerUp,
+				onPointerCancel: resetDrag,
+				onLostPointerCapture: resetDrag
 			});
 		}
 
