@@ -2,7 +2,7 @@
 # a top-level YAML array of loader patch entries (id-targeted config
 # overrides, disables, and insert lists; `!!js` expressions allowed).
 
-# ── VS Code 布局魔改：文件树/查看器/全局人设/MCP 管理的宿主接口 ──
+# ── VS Code 布局魔改：布局以官方 ui-layout 兼容身份部署；这里只挂载宿主接口 ──
 - insert:
     - id: vscode-host-files
       name: '@anoslide/dsh-host-files'

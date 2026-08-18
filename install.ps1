@@ -32,10 +32,15 @@ if (-not (Test-Path $dshPkg)) {
     exit 1
 }
 
-# 2) 安装自研插件
-$profilesNode = Join-Path $env:USERPROFILE '.dsh\profiles\node_modules\@anoslide'
-New-Item -ItemType Directory -Path $profilesNode -Force | Out-Null
-Copy-Item (Join-Path $here 'plugins\*') $profilesNode -Recurse -Force
+# 2) 按包的真实身份安装自研插件
+$profilesNode = Join-Path $env:USERPROFILE '.dsh\profiles\node_modules'
+$anoslideNode = Join-Path $profilesNode '@anoslide'
+$deepseekNode = Join-Path $profilesNode '@deepseek-ai'
+$hostFilesTarget = Join-Path $anoslideNode 'dsh-host-files'
+$layoutTarget = Join-Path $deepseekNode 'dsh-client-ui-layout'
+New-Item -ItemType Directory -Path $hostFilesTarget, $layoutTarget -Force | Out-Null
+Copy-Item (Join-Path $here 'plugins\dsh-host-files\*') $hostFilesTarget -Recurse -Force
+Copy-Item (Join-Path $here 'plugins\dsh-client-vscode-layout\*') $layoutTarget -Recurse -Force
 Write-Host "[1/3] 插件已安装 -> $profilesNode"
 
 # 3) 打官方包补丁
@@ -52,7 +57,7 @@ if (Test-Path $patchSrc) {
 $targetCfg = Join-Path $env:USERPROFILE '.dsh\profiles\web\cordis.patch.yml'
 if (Test-Path $targetCfg) {
     Write-Host '[3/3] 检测到已有 cordis.patch.yml，未覆盖。' -ForegroundColor Yellow
-    Write-Host '      请手动把仓库里 cordis.patch.yml 的 vscode-host-files 段合并进去（见 README）。'
+    Write-Host '      请手动把仓库里 cordis.patch.yml 的 ui-layout 与 vscode-host-files 段合并进去（见 README）。'
 } else {
     New-Item -ItemType Directory -Path (Split-Path $targetCfg) -Force | Out-Null
     Copy-Item (Join-Path $here 'cordis.patch.yml') $targetCfg -Force

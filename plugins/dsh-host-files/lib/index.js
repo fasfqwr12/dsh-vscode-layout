@@ -12,6 +12,8 @@ const name = "dsh-host-files";
 const inject = ["webServer"];
 /** 单文件读取上限（超出则截断并标记）。 */
 const MAX_READ_BYTES = 2 * 1024 * 1024;
+/** 浏览器内图片预览上限。 */
+const MAX_IMAGE_PREVIEW_BYTES = 20 * 1024 * 1024;
 /** 单文件写入上限。 */
 const MAX_WRITE_BYTES = 10 * 1024 * 1024;
 /** 服务端高亮处理上限。 */
@@ -58,6 +60,19 @@ async function shutdownServer() {
 	} catch {}
 	// 兜底：稍等（让 MCP 卸载完成/其他子进程收到 stdin EOF）后退出
 	setTimeout(() => process.exit(0), 1500);
+}
+
+/** 仅允许浏览器可直接显示的光栅图片进入原始字节预览接口。 */
+const IMAGE_MIME_BY_EXTENSION = new Map([
+	[".png", "image/png"],
+	[".jpg", "image/jpeg"],
+	[".jpeg", "image/jpeg"],
+	[".webp", "image/webp"],
+	[".gif", "image/gif"]
+]);
+
+function imageMimeOf(path) {
+	return IMAGE_MIME_BY_EXTENSION.get(extname(path).toLowerCase()) ?? null;
 }
 
 function sendJson(res, code, value) {
@@ -234,7 +249,10 @@ function resolveDshModule(name) {
 let rootCtx = null;
 let mcpClientModulePromise = null;
 let mcpServers = [];
-let mcpDisposers = new Map(); // id → disposer
+let mcpDisposers = new Map(); // id → Cordis Fiber
+let mcpOperations = new Map(); // id → serialized mount/unmount promise
+let mcpStateReady = Promise.resolve();
+let mcpControlChain = Promise.resolve(); // serialize state mutations (add/toggle/delete)
 function loadMCPClientModule() {
 	if (mcpClientModulePromise === null) {
 		mcpClientModulePromise = (async () => {
@@ -256,11 +274,11 @@ async function saveMCPState() {
 	await mkdir(dirname(MCP_STATE_FILE), { recursive: true });
 	await writeFile(MCP_STATE_FILE, JSON.stringify({ version: 1, servers: mcpServers }, null, 2), "utf8");
 }
-function mcpConfigOf(server) {
+function mcpConfigOf(server, strict = false) {
 	const base = {
 		serverName: server.serverName,
 		toolCallTimeoutMs: server.toolCallTimeoutMs ?? 30000,
-		failOnStartupError: false,
+		failOnStartupError: strict,
 		reconnect: { enabled: false }
 	};
 	if (server.transport === "streamable-http") {
@@ -268,24 +286,65 @@ function mcpConfigOf(server) {
 	}
 	return { ...base, transport: "stdio", command: server.command, args: server.args ?? [], env: server.env ?? {}, cwd: server.cwd ?? "" };
 }
-async function mountMCPServer(server) {
+function enqueueMCPOperation(id, operation) {
+	const previous = mcpOperations.get(id) ?? Promise.resolve();
+	const next = previous.catch(() => {}).then(operation);
+	mcpOperations.set(id, next);
+	return next.finally(() => {
+		if (mcpOperations.get(id) === next) mcpOperations.delete(id);
+	});
+}
+function enqueueMCPControl(operation) {
+	const previous = mcpControlChain;
+	const next = previous.catch(() => {}).then(async () => {
+		await mcpStateReady;
+		return operation();
+	});
+	mcpControlChain = next;
+	return next.finally(() => {
+		if (mcpControlChain === next) mcpControlChain = Promise.resolve();
+	});
+}
+async function mountMCPServerUnlocked(server, strict) {
+	if (mcpDisposers.has(server.id)) return { alreadyMounted: true };
+	const mod = await loadMCPClientModule();
+	if (rootCtx === null) throw new Error("host plugin 尚未初始化");
+	const fiber = rootCtx.plugin(mod, mcpConfigOf(server, strict));
 	try {
-		const mod = await loadMCPClientModule();
-		if (rootCtx === null) throw new Error("host plugin 尚未初始化");
-		const dispose = await rootCtx.plugin(mod, mcpConfigOf(server));
-		mcpDisposers.set(server.id, dispose);
+		await fiber.await();
 	} catch (error) {
-		console.error(`[dsh-host-files] MCP 挂载失败 ${server.serverName}:`, error instanceof Error ? error.message : String(error));
+		try { await fiber.dispose(); } catch {}
+		throw error;
 	}
+	mcpDisposers.set(server.id, fiber);
+	return { mounted: true };
+}
+async function mountMCPServer(server, { strict = false } = {}) {
+	return enqueueMCPOperation(server.id, async () => {
+		try {
+			return await mountMCPServerUnlocked(server, strict);
+		} catch (error) {
+			console.error(`[dsh-host-files] MCP 挂载失败 ${server.serverName}:`, error instanceof Error ? error.message : String(error));
+			throw error;
+		}
+	});
+}
+async function unmountMCPUnlocked(id) {
+	const fiber = mcpDisposers.get(id);
+	if (fiber === void 0) return { alreadyUnmounted: true };
+	mcpDisposers.delete(id);
+	await fiber.dispose();
+	return { unmounted: true };
 }
 async function unmountMCP(id) {
-	const dispose = mcpDisposers.get(id);
-	if (dispose !== void 0) {
-		mcpDisposers.delete(id);
+	return enqueueMCPOperation(id, async () => {
 		try {
-			await dispose();
-		} catch {}
-	}
+			return await unmountMCPUnlocked(id);
+		} catch (error) {
+			console.error(`[dsh-host-files] MCP 卸载失败 ${id}:`, error instanceof Error ? error.message : String(error));
+			throw error;
+		}
+	});
 }
 function mcpPublicView(server) {
 	return {
@@ -407,22 +466,25 @@ function apply(ctx) {
 			}
 		};
 	}, "dsh-host-files: idle shutdown monitor");
-	// MCP 运行时管理：启动时挂载 enabled 的 server，卸载时全部释放
+	// MCP 运行时管理：启动时挂载 enabled 的 server，卸载时全部等待释放。
 	ctx.effect(() => {
-		(async () => {
+		mcpStateReady = (async () => {
 			await loadMCPState();
 			for (const server of mcpServers) {
-				if (server.enabled !== false) await mountMCPServer(server);
+				if (server.enabled !== false) {
+					try { await mountMCPServer(server); }
+					catch (error) { console.error(`[dsh-host-files] MCP 启动挂载失败 ${server.serverName}:`, error instanceof Error ? error.message : String(error)); }
+				}
 			}
 		})();
-		return () => {
+		return async () => {
+			await mcpStateReady.catch(() => {});
+			await mcpControlChain.catch(() => {});
 			for (const id of [...mcpDisposers.keys()]) {
-				const dispose = mcpDisposers.get(id);
-				mcpDisposers.delete(id);
-				try {
-					dispose?.();
-				} catch {}
+				try { await unmountMCP(id); } catch {}
 			}
+			await Promise.all([...mcpOperations.values()].map((task) => task.catch(() => {})));
+			if (rootCtx === ctx) rootCtx = null;
 		};
 	}, "dsh-host-files: mcp runtime");
 	ctx.effect(() => ctx.webServer.register({
@@ -438,6 +500,7 @@ function apply(ctx) {
 						const content = body?.content;
 						if (typeof content !== "string") return sendJson(res, 400, { ok: false, error: "body needs { content: string }" });
 						if (Buffer.byteLength(content, "utf8") > MAX_PERSONA_BYTES) return sendJson(res, 400, { ok: false, error: "persona too large" });
+						await mkdir(dirname(PERSONA_FILE), { recursive: true });
 						await writeFile(PERSONA_FILE, content, "utf8");
 						return sendJson(res, 200, { ok: true });
 					} catch (error) {
@@ -486,19 +549,30 @@ function apply(ctx) {
 						return sendJson(res, 200, { ok: true });
 					}
 					if (url.pathname === "/vscode-files/mcp/toggle") {
-						const server = mcpServers.find((s) => s.id === body?.id);
-						if (server === void 0) return sendJson(res, 404, { ok: false, error: "server not found" });
-						server.enabled = !(server.enabled !== false);
-						if (server.enabled) await mountMCPServer(server);
-						else await unmountMCP(server.id);
-						await saveMCPState();
-						return sendJson(res, 200, { ok: true, enabled: server.enabled });
+						return await enqueueMCPControl(async () => {
+							const server = mcpServers.find((s) => s.id === body?.id);
+							if (server === void 0) return sendJson(res, 404, { ok: false, error: "server not found" });
+							const previousEnabled = server.enabled !== false;
+							const nextEnabled = !previousEnabled;
+							try {
+								if (nextEnabled) await mountMCPServer(server, { strict: true });
+								else await unmountMCP(server.id);
+								server.enabled = nextEnabled;
+								await saveMCPState();
+								return sendJson(res, 200, { ok: true, enabled: nextEnabled });
+							} catch (error) {
+								server.enabled = previousEnabled;
+								return sendJson(res, 400, { ok: false, error: error instanceof Error ? error.message : String(error) });
+							}
+						});
 					}
 					if (url.pathname === "/vscode-files/mcp/delete") {
-						await unmountMCP(body?.id);
-						mcpServers = mcpServers.filter((s) => s.id !== body?.id);
-						await saveMCPState();
-						return sendJson(res, 200, { ok: true });
+						return await enqueueMCPControl(async () => {
+							await unmountMCP(body?.id);
+							mcpServers = mcpServers.filter((s) => s.id !== body?.id);
+							await saveMCPState();
+							return sendJson(res, 200, { ok: true });
+						});
 					}
 					if (url.pathname === "/vscode-files/mcp/add") {
 						const serverName = body?.serverName;
@@ -523,17 +597,26 @@ function apply(ctx) {
 							headers: body?.headers && typeof body.headers === "object" ? Object.fromEntries(Object.entries(body.headers).map(([k, v]) => [k, String(v)])) : {},
 							enabled: true
 						};
-						mcpServers.push(server);
-						await mountMCPServer(server);
-						await saveMCPState();
-						return sendJson(res, 200, { ok: true, id: serverName });
+						return await enqueueMCPControl(async () => {
+							if (mcpServers.some((s) => s.id === serverName)) return sendJson(res, 400, { ok: false, error: "serverName 已存在" });
+							try {
+								await mountMCPServer(server, { strict: true });
+								mcpServers.push(server);
+								await saveMCPState();
+								return sendJson(res, 200, { ok: true, id: serverName });
+							} catch (error) {
+								await unmountMCP(server.id).catch(() => {});
+								return sendJson(res, 400, { ok: false, error: error instanceof Error ? error.message : String(error) });
+							}
+						});
 					}
 				} catch (error) {
 					return sendJson(res, 400, { ok: false, error: error instanceof Error ? error.message : String(error) });
 				}
 			}
 			const target = url.searchParams.get("path");
-			if (typeof target !== "string" || target.length === 0) {
+			// 写操作以 JSON body 中的 path 为准；只有读取接口依赖 query path。
+			if (req.method !== "POST" && (typeof target !== "string" || target.length === 0)) {
 				return sendJson(res, 400, { ok: false, error: "missing path" });
 			}
 			try {
@@ -560,9 +643,34 @@ function apply(ctx) {
 					files.sort((a, b) => a.name.localeCompare(b.name));
 					return sendJson(res, 200, { ok: true, path: target, dirs, files });
 				}
+				if (url.pathname === "/vscode-files/raw") {
+					const mime = imageMimeOf(target);
+					if (mime === null) return sendJson(res, 415, { ok: false, error: "unsupported preview type" });
+					const info = await stat(target);
+					if (info.isDirectory()) return sendJson(res, 400, { ok: false, error: "path is a directory" });
+					if (info.size > MAX_IMAGE_PREVIEW_BYTES) return sendJson(res, 413, { ok: false, error: "image too large" });
+					const bytes = await readFile(target);
+					res.writeHead(200, {
+						"content-type": mime,
+						"content-length": String(bytes.length),
+						"cache-control": "no-store",
+						"x-content-type-options": "nosniff"
+					});
+					res.end(bytes);
+					return;
+				}
 				if (url.pathname === "/vscode-files/read") {
 					const info = await stat(target);
 					if (info.isDirectory()) return sendJson(res, 400, { ok: false, error: "path is a directory" });
+					const mime = imageMimeOf(target);
+					if (mime !== null) {
+						return sendJson(res, 200, {
+							ok: true,
+							kind: info.size > MAX_IMAGE_PREVIEW_BYTES ? "image-too-large" : "image",
+							mime,
+							size: info.size
+						});
+					}
 					if (info.size > MAX_READ_BYTES) {
 						const text = await readFile(target, "utf8");
 						return sendJson(res, 200, { ok: true, kind: "too-large", content: text.slice(0, MAX_READ_BYTES), size: info.size });

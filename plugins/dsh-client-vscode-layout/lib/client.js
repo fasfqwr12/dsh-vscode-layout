@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "@anoslide/dsh-client-vscode-layout",
+	id: "@deepseek-ai/dsh-client-ui-layout",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
@@ -32,6 +32,22 @@ window.__ModuleLoader__.load({
 			if (s + 360 <= viewport) return { sidebar: s, center: viewport - s, right: 0 };
 			return { sidebar: 0, center: viewport, right: 0 };
 		}
+
+
+		// ──────────────────────────────────────────────────────────────
+		// 思考等级档位（统一桌面完整展示，手动档位由上游响应决定）
+		// ──────────────────────────────────────────────────────────────
+		const REASONING_LEVELS = Object.freeze([
+			{ id: "off", label: "Off", description: "关闭额外推理" },
+			{ id: "minimal", label: "Minimal", description: "最少推理" },
+			{ id: "low", label: "Low", description: "低强度推理" },
+			{ id: "medium", label: "Medium", description: "中等强度推理" },
+			{ id: "high", label: "High", description: "高强度推理" },
+			{ id: "xhigh", label: "XHigh", description: "超高强度推理" },
+			{ id: "max", label: "Max", description: "最大强度推理" },
+			{ id: "ultra", label: "Ultra", description: "Ultra 级推理" }
+		]);
+		const REASONING_LABELS = new Map(REASONING_LEVELS.map((level) => [level.id, level.label]));
 
 		function escapeHtml(text) {
 			return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -392,13 +408,64 @@ window.__ModuleLoader__.load({
 			".vk_mgrAddForm{display:flex;flex-direction:column;gap:8px;border:1px dashed var(--dsw-alias-border-l2);border-radius:8px;padding:12px;margin-bottom:10px}",
 			".vk_mgrInput{background:var(--dsw-specific-input-fill,var(--dsw-specific-sidebar-fill));color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:6px 10px;font-size:12.5px;font-family:inherit}",
 			".vk_mgrInput:focus{outline:none;border-color:var(--vk-accent)}",
-			".vk_mgrLabel{font-size:11.5px;color:var(--dsw-alias-label-secondary)}"
+			".vk_mgrLabel{font-size:11.5px;color:var(--dsw-alias-label-secondary)}",
+"		.vk_rrStatus{display:flex;align-items:center;gap:6px;min-width:0;font-family:var(--dsw-font-family)}",
+"		.vk_reasoningControl{position:relative;min-width:0}",
+"		.vk_statusChip{appearance:none;height:28px;max-width:190px;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--dsw-alias-border-l2);border-radius:999px;background:transparent;color:var(--dsw-alias-label-secondary);padding:0 9px;font:500 12px/18px var(--dsw-font-family);white-space:nowrap;cursor:default;box-sizing:border-box}",
+"		button.vk_statusChip{cursor:pointer}",
+"		button.vk_statusChip:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l3)}",
+"		button.vk_statusChip:disabled{color:var(--dsw-alias-label-dimmed);cursor:default}",
+"		.vk_statusChip:focus-visible,.vk_effortOption:focus-visible{outline:2px solid var(--vk-accent-ring);outline-offset:1px}",
+"		.vk_statusIcon{font-size:13px;line-height:1;flex:none}",
+"		.vk_statusLabel{overflow:hidden;text-overflow:ellipsis}",
+"		.vk_statusMeta{color:var(--dsw-alias-label-caption);font-weight:400;flex:none}",
+"		.vk_statusChevron{color:var(--dsw-alias-label-caption);font-size:10px;transition:transform .12s;flex:none}",
+"		.vk_reasoningControl[data-open] .vk_statusChevron{transform:rotate(180deg)}",
+"		.vk_reasoningMenu{position:absolute;z-index:50;right:0;top:calc(100% + 7px);width:min(390px,calc(100vw - 28px));padding:8px;border:1px solid var(--dsw-alias-border-inverted);border-radius:12px;background:var(--dsw-specific-menu);box-shadow:var(--dsw-shadow-lv3);color:var(--dsw-alias-label-primary);box-sizing:border-box}",
+"		.vk_reasoningHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:3px 4px 8px}",
+"		.vk_reasoningTitle{font-size:13px;font-weight:600;line-height:19px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+"		.vk_reasoningSupport{font-size:11px;line-height:18px;color:var(--dsw-alias-label-tertiary);white-space:nowrap}",
+"		.vk_effortGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}",
+"		.vk_effortOption{appearance:none;position:relative;min-width:0;min-height:49px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary);font-family:inherit;text-align:left;cursor:pointer}",
+"		.vk_effortOption:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-border-l3)}",
+"		.vk_effortOption[data-active]{border-color:var(--vk-accent);background:var(--vk-accent-soft);box-shadow:inset 0 0 0 1px var(--vk-accent-ring)}",
+"		.vk_effortOption:disabled{opacity:.42;cursor:not-allowed}",
+"		.vk_effortName{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;line-height:17px}",
+"		.vk_effortDesc{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;line-height:15px;color:var(--dsw-alias-label-tertiary)}",
+"		.vk_effortDefault{position:absolute;right:5px;top:4px;color:var(--vk-accent);font-size:9px;line-height:12px}",
+"		.vk_reasoningError{margin-top:7px;padding:6px 8px;border-radius:7px;background:var(--dsw-alias-interactive-bg-hover-danger);color:var(--dsw-alias-state-error-primary);font-size:11px;line-height:16px;word-break:break-word}",
+"		.vk_retryChip[data-state=scheduled]{border-color:color-mix(in srgb,var(--dsw-alias-state-warn-label) 45%,transparent);color:var(--dsw-alias-state-warn-label);background:var(--dsw-alias-bg-module-platform)}",
+"		.vk_retryChip[data-state=started]{border-color:var(--vk-accent);color:var(--vk-accent);background:var(--vk-accent-soft)}",
+"		.vk_retryChip[data-state=failed]{color:var(--dsw-alias-state-error-primary);background:var(--dsw-alias-interactive-bg-hover-danger)}",
+"		.vk_retryChip[data-state=succeeded]{color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 12%,transparent)}",
+"		.vk_retryDot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}",
+"		.vk_retryChip[data-state=started] .vk_retryDot{animation:vk_retryPulse 1s ease-in-out infinite}",
+"		@keyframes vk_retryPulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}",
+"		@media(max-width:720px){.vk_statusMeta{display:none}.vk_statusChip{max-width:125px}.vk_effortGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}",
+"		@media(prefers-reduced-motion:reduce){.vk_retryChip[data-state=started] .vk_retryDot{animation:none}}",
+"		.vk_customEffortRow{margin-top:7px;padding-top:7px;border-top:1px solid var(--dsw-alias-border-l1)}",
+"		.vk_customField{display:flex;align-items:center;gap:6px}",
+"		.vk_customLabel{display:block;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);margin-bottom:3px}",
+"		.vk_customInput{flex:1;min-width:0;height:28px;box-sizing:border-box;padding:0 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-input,var(--dsw-alias-bg-module-platform));color:var(--dsw-alias-label-primary);font:400 12px/18px var(--dsw-font-family)}",
+"		.vk_customInput:focus{outline:none;border-color:var(--vk-accent);box-shadow:0 0 0 2px var(--vk-accent-ring)}",
+"		.vk_customApply{appearance:none;height:28px;flex:none;padding:0 12px;border:1px solid var(--vk-accent);border-radius:7px;background:var(--vk-accent);color:var(--vk-accent-ink,var(--dsw-alias-on-accent,#fff));font:500 12px/18px var(--dsw-font-family);cursor:pointer;box-sizing:border-box}",
+"		.vk_customApply:hover:not(:disabled){filter:brightness(1.08)}",
+"		.vk_customApply:disabled{opacity:.45;cursor:not-allowed}",
+"		.vk_customHint{margin-top:5px;font-size:10px;line-height:15px;color:var(--dsw-alias-label-tertiary)}",
+"		.vk_retryControl{position:relative;min-width:0}",
+"		.vk_retryControl .vk_retryChip{cursor:pointer}",
+"		.vk_retryMenu{position:absolute;z-index:50;right:0;top:calc(100% + 7px);width:min(330px,calc(100vw - 28px));padding:8px;border:1px solid var(--dsw-alias-border-inverted);border-radius:12px;background:var(--dsw-specific-menu);box-shadow:var(--dsw-shadow-lv3);color:var(--dsw-alias-label-primary);box-sizing:border-box}",
+"		.vk_retryFieldRow{display:flex;gap:8px}",
+"		.vk_retryField{flex:1;min-width:0}",
+"		.vk_retryActions{display:flex;align-items:center;gap:8px;margin-top:8px}",
+"		.vk_retryClear{appearance:none;height:28px;flex:none;padding:0 10px;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font:500 12px/18px var(--dsw-font-family);cursor:pointer;box-sizing:border-box}",
+"		.vk_retryClear:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}",
 		].join("");
 		{
-			const tagId = "@anoslide/dsh-client-vscode-layout/vscode.module.css";
+			const tagId = "@deepseek-ai/dsh-client-ui-layout/vscode.module.css";
 			if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 				const tag = document.createElement("style");
-				tag.dataset.plugin = "@anoslide/dsh-client-vscode-layout";
+				tag.dataset.plugin = "@deepseek-ai/dsh-client-ui-layout";
 				tag.dataset.pluginCss = tagId;
 				tag.textContent = css;
 				document.head.appendChild(tag);
@@ -1080,6 +1147,259 @@ window.__ModuleLoader__.load({
 		// ──────────────────────────────────────────────────────────────
 		// 组件：全局人设设置分区（settings.section，类似 CC 的全局 CLAUDE.md）
 		// ──────────────────────────────────────────────────────────────
+		function findCurrentModel(state) {
+			const current = state.current;
+			if (current === null) return null;
+			for (const group of state.groups ?? []) {
+				for (const model of group.models ?? []) {
+					if (group.id === current.provider && model.id === current.model) return { group, model };
+				}
+			}
+			return null;
+		}
+
+		function retryInfoOf(chat) {
+			const nodes = typeof chat?.nodes?.values === "function" ? chat.nodes.values() : [];
+			let retryNode = null;
+			let retrySeq = -Infinity;
+			for (const node of nodes) {
+				if (node?.kind !== "model-retry" || node.data?.current === void 0) continue;
+				const seq = Number(node.data.current.seq ?? node.anchorSeq ?? -Infinity);
+				if (seq >= retrySeq) { retryNode = node; retrySeq = seq; }
+			}
+			if (retryNode === null) return null;
+			const current = retryNode.data.current;
+			let outcome = null;
+			let outcomeSeq = retrySeq;
+			for (const node of nodes) {
+				let seq = Number(node?.anchorSeq ?? node?.data?.seq ?? -Infinity);
+				if (node?.kind === "assistant-step") seq = Number(node.data?.finalNode?.seq ?? seq);
+				if (seq <= outcomeSeq) continue;
+				if (node?.kind === "turn-error" && node.data?.turn === current.turn && node.data?.step === current.step) {
+					outcome = { state: "failed", message: node.data?.message ?? "模型请求失败" };
+					outcomeSeq = seq;
+				} else if (node?.kind === "assistant-step" && node.data?.status === "settled" && node.data?.turn === current.turn && node.data?.step === current.step) {
+					outcome = { state: "succeeded", message: "重试后请求已成功" };
+					outcomeSeq = seq;
+				}
+			}
+			return { data: retryNode.data, outcome };
+		}
+
+		function ReasoningRetryStatus({ sessionId, useSession, available, directory, load, select }) {
+			const state = react.useSyncExternalStore(
+				(fn) => directory.subscribe(fn),
+				() => directory.getSnapshot(),
+				() => directory.getSnapshot()
+			);
+			const chat = useSession((snapshot) => snapshot.chat);
+			const retryInfo = react.useMemo(() => retryInfoOf(chat), [chat]);
+			const [open, setOpen] = react.useState(false);
+			const rootRef = react.useRef(null);
+			const [now, setNow] = react.useState(() => Date.now());
+			const [customEffort, setCustomEffort] = react.useState("");
+			const [retryCount, setRetryCount] = react.useState(3);
+			const [retryDelay, setRetryDelay] = react.useState(2);
+			const [retryOpen, setRetryOpen] = react.useState(false);
+			const retryRef = react.useRef(null);
+
+			react.useEffect(() => {
+				if (available && directory.getSnapshot().status === "idle") load();
+			}, [available, directory, load]);
+			react.useEffect(() => {
+				if (!open && !retryOpen) return;
+				const close = (event) => {
+					if (open && !rootRef.current?.contains(event.target)) setOpen(false);
+					if (retryOpen && !retryRef.current?.contains(event.target)) setRetryOpen(false);
+				};
+				const escape = (event) => { if (event.key === "Escape") { setOpen(false); setRetryOpen(false); } };
+				document.addEventListener("mousedown", close);
+				document.addEventListener("keydown", escape);
+				return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", escape); };
+			}, [open, retryOpen]);
+
+			const current = state.current;
+			const resolved = findCurrentModel(state);
+			const reasoning = resolved?.model?.reasoning;
+			const declared = Array.isArray(reasoning?.efforts) ? reasoning.efforts : [];
+			const effectiveEffort = current?.reasoningEffort ?? reasoning?.defaultEffort;
+			const effKey = (value) => String(value ?? "").toLowerCase();
+			const declaredCurrent = effectiveEffort === void 0 ? void 0 : declared.find((level) => effKey(level.id) === effKey(effectiveEffort));
+			const effortLabel = effectiveEffort === void 0
+				? (reasoning === void 0 ? "自动" : "提供商默认")
+				: (declaredCurrent?.name ?? REASONING_LABELS.get(effKey(effectiveEffort)) ?? effectiveEffort);
+			const modelLabel = resolved?.model?.name ?? current?.model ?? "模型未加载";
+			const standardKeys = new Set(REASONING_LEVELS.map((level) => effKey(level.id)));
+			const customLevels = declared.filter((level) => !standardKeys.has(effKey(level.id)));
+			const isDefault = reasoning !== void 0 && current?.reasoningEffort === void 0;
+			const busy = state.status === "selecting";
+
+			const chooseEffort = (effort) => {
+				if (!available || busy || current === null) return;
+				const next = {
+					provider: current.provider,
+					model: current.model,
+					...(effort === void 0 ? {} : { reasoningEffort: effort }),
+					...(current.retryOverride === void 0 ? {} : { retryOverride: current.retryOverride })
+				};
+				Promise.resolve(select(next)).then((accepted) => { if (accepted !== false) setOpen(false); });
+			};
+
+			const commitSelection = (selection) => {
+				if (!available || busy || current === null) return Promise.resolve(false);
+				const next = {
+					provider: current.provider,
+					model: current.model,
+					...(current.reasoningEffort === void 0 ? {} : { reasoningEffort: current.reasoningEffort }),
+					...(current.retryOverride === void 0 ? {} : { retryOverride: current.retryOverride }),
+					...selection
+				};
+				return Promise.resolve(select(next)).then((accepted) => accepted !== false, () => false);
+			};
+
+			const applyCustomEffort = () => {
+				const value = String(customEffort || "").trim().toLowerCase();
+				if (value === "" || busy || current === null) return;
+				commitSelection({ reasoningEffort: value }).then((ok) => { if (ok) setOpen(false); });
+			};
+
+			const applyRetry = () => {
+				const count = Math.round(Number(retryCount));
+				const delay = Number(retryDelay);
+				if (!Number.isFinite(count) || !Number.isFinite(delay) || count < 0 || count > 20 || delay < 0.1 || delay > 60) return;
+				const override = { maxRetries: count, initialDelayMs: Math.round(delay * 1000) };
+				commitSelection({ retryOverride: override }).then((ok) => { if (ok) setRetryOpen(false); });
+			};
+
+			const clearRetry = () => {
+				commitSelection({ retryOverride: void 0 }).then((ok) => { if (ok) setRetryOpen(false); });
+			};
+
+			const retryCurrent = retryInfo?.data?.current;
+			const retryState = retryCurrent?.retryState === "cancelled"
+				? "cancelled"
+				: (retryInfo?.outcome?.state ?? retryCurrent?.retryState ?? "idle");
+			const retryMaximum = retryCurrent?.mode === "always" ? Infinity : Number(retryCurrent?.maxRetries);
+			const retryNumber = Number(retryCurrent?.retry ?? retryInfo?.data?.attempts?.length);
+			const retryDeadline = react.useMemo(() => {
+				const delay = Number(retryCurrent?.delayMs);
+				return retryCurrent?.retryState === "scheduled" && Number.isFinite(delay)
+					? Date.now() + Math.max(0, delay)
+					: NaN;
+			}, [retryCurrent?.seq, retryCurrent?.delayMs, retryCurrent?.retryState]);
+			react.useEffect(() => {
+				if (retryState !== "scheduled" || !Number.isFinite(retryDeadline)) return;
+				setNow(Date.now());
+				const timer = window.setInterval(() => setNow(Date.now()), 500);
+				return () => window.clearInterval(timer);
+			}, [retryState, retryDeadline]);
+
+			let retryLabel = "重试待命";
+			let retryTitle = "模型请求失败时会在这里显示自动重试进度";
+			if (retryCurrent !== void 0) {
+				const progress = Number.isFinite(retryNumber)
+					? ` ${retryNumber}${retryMaximum === Infinity ? "/∞" : Number.isFinite(retryMaximum) ? `/ ${retryMaximum}` : ""}`
+					: "";
+				if (retryState === "scheduled") {
+					const seconds = Number.isFinite(retryDeadline) ? Math.max(0, Math.ceil((retryDeadline - now) / 1000)) : null;
+					retryLabel = `等待重试${progress}${seconds === null ? "" : ` · ${seconds}s`}`;
+				} else if (retryState === "started") retryLabel = `重试进行中${progress}`;
+				else if (retryState === "cancelled") retryLabel = `重试已取消${progress}`;
+				else if (retryState === "failed") retryLabel = `重试失败${progress}`;
+				else if (retryState === "succeeded") retryLabel = `重试成功${progress}`;
+				retryTitle = retryInfo?.outcome?.message ?? retryCurrent.failure?.message ?? retryLabel;
+			}
+
+			const renderEffort = (level, defaultLevel = false) => h("button", {
+				type: "button",
+				key: level.id,
+				className: "vk_effortOption",
+				disabled: false,
+				"data-active": effectiveEffort !== void 0 && effKey(effectiveEffort) === effKey(level.id) || void 0,
+				title: level.description ?? "按此档位尝试，结果以上游响应为准",
+				onClick: () => chooseEffort(level.id)
+			},
+				h("span", { className: "vk_effortName" }, level.name ?? level.label ?? level.id),
+				h("span", { className: "vk_effortDesc" }, level.description ?? "按此档位尝试，结果以上游响应为准"),
+				defaultLevel ? h("span", { className: "vk_effortDefault" }, "默认") : null
+			);
+
+			return h("div", { className: "vk_rrStatus" },
+				h("div", { ref: rootRef, className: "vk_reasoningControl", "data-open": open || void 0 },
+					h("button", {
+						type: "button", className: "vk_statusChip", disabled: !available,
+						"aria-expanded": open, "aria-haspopup": "menu",
+						title: `${modelLabel} · 推理等级 ${effortLabel}`,
+						onClick: () => setOpen((value) => !value)
+					},
+						h("span", { className: "vk_statusIcon", "aria-hidden": true }, "◈"),
+						h("span", { className: "vk_statusLabel" }, `思考 ${effortLabel}`),
+						isDefault ? h("span", { className: "vk_statusMeta" }, "默认") : null,
+						h("span", { className: "vk_statusChevron", "aria-hidden": true }, "▼")
+					),
+					open ? h("div", { className: "vk_reasoningMenu", role: "menu" },
+						h("div", { className: "vk_reasoningHead" },
+							h("div", { className: "vk_reasoningTitle", title: modelLabel }, modelLabel),
+							h("div", { className: "vk_reasoningSupport" }, "手动档位由上游决定，错误会原样显示")
+						),
+						h("button", {
+								type: "button", className: "vk_effortOption",
+										"data-active": effectiveEffort === void 0 || void 0, disabled: false,
+								onClick: () => chooseEffort(void 0), style: { width: "100%", marginBottom: "5px" }
+							}, h("span", { className: "vk_effortName" }, "自动 / 提供商默认"), h("span", { className: "vk_effortDesc" }, "不添加思考字段，由上游决定"), h("span", { className: "vk_effortDefault" }, "默认")),
+						h("div", { className: "vk_effortGrid" },
+							REASONING_LEVELS.map((level) => {
+								const declaredLevel = declared.find((item) => String(item.id) === level.id);
+								return renderEffort({ ...level, name: declaredLevel?.name ?? level.label, description: declaredLevel?.description ?? level.description }, reasoning?.defaultEffort === level.id);
+							}),
+							customLevels.map((level) => renderEffort(level, reasoning?.defaultEffort === level.id))
+						),
+						h("div", { className: "vk_customEffortRow" },
+							h("div", { className: "vk_customField" },
+								h("input", { className: "vk_customInput", type: "text", placeholder: "自定义思考等级…", value: customEffort, onChange: (e) => setCustomEffort(e.target.value), onKeyDown: (e) => { if (e.key === "Enter") applyCustomEffort(); } }),
+								h("button", { type: "button", className: "vk_customApply", onClick: applyCustomEffort }, "应用")
+							),
+							h("div", { className: "vk_customHint" }, "输入任意档位值（如 adaptive / ultra），直发网关，是否有效由上游决定")
+						),
+						state.error !== null ? h("div", { className: "vk_reasoningError", role: "alert" }, state.error) : null
+					) : null
+				),
+				h("div", { ref: retryRef, className: "vk_retryControl", "data-open": retryOpen || void 0 },
+					h("button", {
+						type: "button", className: "vk_statusChip vk_retryChip", "data-state": retryState, disabled: !available,
+						title: retryTitle, "aria-expanded": retryOpen,
+						onClick: () => setRetryOpen((value) => !value)
+					},
+						h("span", { className: "vk_retryDot", "aria-hidden": true }),
+						h("span", { className: "vk_statusLabel" }, retryLabel),
+						h("span", { className: "vk_statusChevron", "aria-hidden": true }, "⚙")
+					),
+					retryOpen ? h("div", { className: "vk_retryMenu", role: "group" },
+						h("div", { className: "vk_reasoningHead" },
+							h("div", { className: "vk_reasoningTitle" }, "模型请求重试"),
+							h("div", { className: "vk_reasoningSupport" }, "设置自动重试的次数与起始间隔")
+						),
+						h("div", { className: "vk_retryFieldRow" },
+							h("label", { className: "vk_retryField" },
+								h("span", { className: "vk_customLabel" }, "次数"),
+								h("input", { className: "vk_customInput", type: "number", min: 0, max: 20, value: retryCount, onChange: (e) => setRetryCount(e.target.value) })
+							),
+							h("label", { className: "vk_retryField" },
+								h("span", { className: "vk_customLabel" }, "间隔(s)"),
+								h("input", { className: "vk_customInput", type: "number", min: 0.1, max: 60, step: 0.1, value: retryDelay, onChange: (e) => setRetryDelay(e.target.value) })
+							)
+						),
+						h("div", { className: "vk_retryActions" },
+							h("button", { type: "button", className: "vk_customApply", onClick: applyRetry }, "应用重试"),
+							current?.retryOverride === void 0 ? null : h("button", { type: "button", className: "vk_retryClear", onClick: clearRetry }, "恢复默认")
+						)
+					) : null
+				)
+			);
+		}
+
+		// ──────────────────────────────────────────────────────────────
+
 		function PersonaSection() {
 			const [content, setContent] = react.useState(null); // null = 加载中
 			const [saving, setSaving] = react.useState(false);
@@ -1734,6 +2054,28 @@ window.__ModuleLoader__.load({
 				order: 3,
 				label: () => "MCP 管理"
 			}, MCPSection)), "vscode-layout: settings mcp section");
+			ctx.inject(["slots", "modelDirectories"], (scope) => {
+				const models = scope.modelDirectories;
+				const sessions = scope.sessions;
+				scope.slots.inject("conversation.session.header.utilities", () => scope.slots.register({
+					name: "conversation.session.header.utilities",
+					id: "vscode-reasoning-retry-status",
+					order: -20,
+					label: "推理与重试状态",
+					inject: (sessionId) => {
+						const modelDirectory = models.directoryFor(sessionId);
+						const available = sessions.subagentAddress(sessionId) === void 0;
+						return {
+							available,
+							directory: modelDirectory.store,
+							load: () => { if (available) modelDirectory.load().catch(() => {}); },
+							select: (selection) => available
+								? modelDirectory.select(selection).then(() => true, () => false)
+								: Promise.resolve(false)
+						};
+					}
+				}, ReasoningRetryStatus));
+			});
 			ctx.effect(() => {
 				const presenter = new ThemePresenter();
 				presenter.apply(ctx.theme.getTheme());

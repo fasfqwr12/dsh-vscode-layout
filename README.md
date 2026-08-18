@@ -39,7 +39,7 @@
 
 ### 手动安装
 
-1. **安装插件**：把 `plugins/` 下两个包复制到 `~/.dsh/profiles/node_modules/@anoslide/`
+1. **安装插件**：把 `dsh-host-files` 安装为 `~/.dsh/profiles/node_modules/@anoslide/dsh-host-files`，把统一布局安装为 `~/.dsh/profiles/node_modules/@deepseek-ai/dsh-client-ui-layout`
 2. **打补丁**：把 `patches/node_modules/@deepseek-ai/` 覆盖到全局 dsh 安装的对应路径
    （Windows 全局安装：`%APPDATA%\npm\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai\`）
 3. **配置**：复制 `cordis.patch.yml` 到 `~/.dsh/profiles/web/`，按下方「配置」填入自己的密钥与路径
